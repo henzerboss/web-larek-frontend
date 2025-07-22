@@ -61,7 +61,7 @@ interface IProductItem {
 Интерфейс заказа
 ```
 interface IOrder {
-    payment: 'card' | 'cash';
+    payment: string;
     email: string;
     phone: string;
     address: string;
@@ -78,6 +78,8 @@ interface IProductModel {
 
     setCatalog(items: IProductItem[]): void;
     setPreview(item: IProductItem): void;
+    getCatalog(): IProductItem[]; 
+    getPreviewId(): string | null; 
     findItem(id: string): IProductItem | undefined; // Находит товар по ID
 }
 ```
@@ -92,10 +94,12 @@ interface IBasketModel {
     removeFromBasket(item: IProductItem): void;
     clearBasket(): void;
     getTotal(): number;
-    
+    isItemInBasket(itemId: string): boolean;
+    getOrder(): IOrder;
     setOrderField(field: keyof Omit<IOrder, 'items' | 'total'>, value: string): void;
     validateOrder(): boolean;
     validateContacts(): boolean;
+    createOrderPayload(): IOrder;
 }
 ```
 
@@ -141,6 +145,7 @@ interface IBasketModel {
 - `setCatalog(items: IProductItem[]): void`: сохраняет список товаров и генерирует событие items:changed.
 - `setPreview(item: IProductItem): void`: сохраняет ID товара для превью.
 - `getCatalog(): IProductItem[]`: возвращает массив всех товаров.
+- `getPreviewId(): string | null`: возвращает ID выбранного товара
 - `findItem(id: string): IProductItem | undefined`: находит и возвращает товар из каталога по его ID.
 
 #### Класс BasketModel
@@ -157,12 +162,13 @@ interface IBasketModel {
 
 - `addToBasket(item: IProductItem): void`: добавляет товар в корзину. Генерирует событие basket:changed.
 - `removeFromBasket(itemId: string): void`: удаляет товар из корзины. Генерирует событие basket:changed.
+- `clearBasket(): void`: очищает корзину.
 - `getBasketItems(): IProductItem[]`: возвращает массив товаров в корзине.
 - `getTotal(): number`: возвращает общую стоимость товаров в корзине.
-- `clearBasket(): void`: очищает корзину.
+- `getOrder(): IOrder`: возвращает массив товаров, добавленных в корзину.
 - `isItemInBasket(itemId: string): boolean`: проверяет, есть ли товар в корзине.
 - `setOrderField(field: keyof IOrderForm, value: string): void`: сохраняет данные из полей форм в объект order.
-- `validateOrder(): boolean / validateContacts(): boolean`: проверяют валидность данных в форме заказа.
+- `validateOrder(): string / validateContacts(): string`: проверяют валидность данных в форме заказа.
 - `createOrderPayload(): IOrder`: собирает финальный объект заказа.
 
 
@@ -183,11 +189,13 @@ interface IBasketModel {
 - `_counter: HTMLElement` для счетчика товаров в корзине (.header__basket-counter).
 - `_catalog: HTMLElement` для контейнера карточек товаров (.gallery).
 - `_wrapper: HTMLElement` для обертки страницы (.page__wrapper), чтобы блокировать скролл.
+- `_basket: HTMLElement`  иконка/кнопка корзины (.header__basket)
 
 Методы:
 
 - `set counter(value: number): void`: Устанавливает значение счетчика.
 - `set catalog(items: HTMLElement[]): void`: Отображает массив карточек в каталоге.
+- `set locked(value: boolean): void`: Блокирует или разблокирует прокрутку страницы путем добавления/удаления класса.
 
 #### Класс Modal
 Для управления модальными окнами.
@@ -229,10 +237,21 @@ interface IBasketModel {
 - `_category: HTMLElement` для категории.
 - `_description: HTMLElement` для описания (в детальном виде).
 - `_button: HTMLButtonElement` для кнопки действия.
+- `_index?: HTMLElement`: порядковый номер в корзине (.basket__item-index).
+- `_isInBasket: boolean`: наличие товара в корзине;
+- `_priceValue: number | null`: цена;
 
 Методы:
 
-- `render(data: IProductItem & { inBasket: boolean }): HTMLElement`: Заполняет шаблон данными и возвращает готовый DOM-элемент карточки. Устанавливает текст и состояние кнопки в зависимости от цены и наличия товара в корзине.
+- `set title(value: string): void`: Устанавливает название товара.
+- `set image(value: string): void`: Устанавливает изображение товара, формируя полный URL с помощью CDN_URL.
+- `set description(value: string): void`: Устанавливает описание товара.
+- `set category(value: string): void`: Устанавливает категорию товара.
+- `set index(value: number): void`: Устанавливает порядковый номер товара в корзине.
+- `set price(value: number | null): void`: Устанавливает цену. Если цена null, отображает "Бесценно" и обновляет кнопку покупки.
+- `set inBasket(value: boolean): void`: Устанавливает статус нахождения товара в корзине и обновляет состояние кнопки.
+- `updateButtonState(): void`: Обновляет текст кнопки в детальном превью ("В корзину" / "Удалить из корзины" или "Недоступно").
+
 
 #### Класс Basket
 Отвечает за отображение содержимого корзины.
@@ -254,29 +273,26 @@ interface IBasketModel {
 
 - `set items(items: HTMLElement[]): void`: Отображает массив карточек товаров в списке.
 - `set total(price: number): void`: Устанавливает итоговую цену.
-- `setDisabled(value: boolean): void`: Управляет активностью кнопки "Оформить".
 
-#### Классы Order и Contacts
-Отвечают за формы оформления заказа.
-
-Назначение: Управляют полями ввода и кнопками. Собирают введенные данные. Отображают ошибки валидации в элементе .form__errors. Создают контент для класса Modal, используя шаблоны #order и #contacts.
+#### Класс Order
+Управляет формой первого шага оформления заказа (выбор способа оплаты и ввод адреса). Наследуется от базового класса Form.
 
 Конструктор:
 
-- `template: HTMLTemplateElement`: Шаблон формы (#order или #contacts соответственно).
-- `events: IEvents`: Брокер событий для генерации input и submit событий.
+- `template: HTMLTemplateElement`: DOM-элемент, склонированный из шаблона #order.
+- `events: IEvents`: Брокер событий, используется для генерации событий ввода и отправки формы.
 
 Поля:
 
-- `_form: HTMLFormElement` - сам элемент формы.
-- `_submitButton: HTMLButtonElement` для отправки формы.
-- `_errors: HTMLElement` для вывода текста ошибок (.form__errors).
+- `protected _cardButton: HTMLButtonElement` - Кнопка выбора оплаты "Онлайн" (button[name="card"]).
+- `_cashButton: HTMLButtonElement` Кнопка выбора оплаты "При получении" (button[name="cash"]).
 
 Методы:
 
-- `render(state: { valid: boolean; errors: string[] }): HTMLFormElement`: Заполняет форму данными и устанавливает состояние валидности.
-- `set valid(state: boolean): void`: Управляет активностью кнопки "submit".
-- `set errors(text: string): void`: Устанавливает текст ошибки валидации.
+- `selectPayment(method: string): void`: Управляет визуальным состоянием кнопок выбора спосопа оплаты и генерирует событие payment:change с выбранным методом.
+
+#### Класс Contacts
+Управляет формой второго шага оформления заказа (ввод email и телефона). Полностью наследует всю свою функциональность от базового класса Form и не добавляет никаких новых полей или методов.
 
 #### Класс Success
 Отвечает за отображение сообщения об успешном заказе.
@@ -291,11 +307,11 @@ interface IBasketModel {
 Поля:
 
 - `_total: HTMLElement` для отображения списанной суммы.
-- `_closeButton: HTMLButtonElement` для кнопки "За новыми покупками".
+- `_close: HTMLButtonElement` для кнопки "За новыми покупками" (.order-success__close).
 
 Методы:
 
-- `render(data: { total: number }): HTMLElement`: Заполняет шаблон данными об итоговой сумме и возвращает DOM-элемент.
+- `set total(value: number): void`: Устанавливает текст с итоговой списанной суммой.
 
 ### Слой коммуникации
 

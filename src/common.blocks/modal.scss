@@ -26,6 +26,8 @@
     border-radius: 3rem;
     box-sizing: border-box;
     position: relative;
+    max-width: calc(1320px - 4.8rem);
+    margin: auto 2.4rem;
   }
 
   &__content {
