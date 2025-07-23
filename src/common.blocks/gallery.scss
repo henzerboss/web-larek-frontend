@@ -7,6 +7,7 @@
 
   &__item {
     border: none;
+    align-items: flex-start;
     border-radius: $defaultBorderRadius;
     @include mixins.selectable($secondary, 2px, $primaryLight);
 

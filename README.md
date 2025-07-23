@@ -84,22 +84,27 @@ interface IProductModel {
 }
 ```
 
-Модель, отвечающая за корзину и заказ
+Модель, отвечающая за корзину
 ```
 interface IBasketModel {
-    items: IProductItem[]; // Товары в корзине
-    order: IOrder;         // Данные заказа
+	addToBasket(item: IProductItem): void;
+	removeFromBasket(itemId: string): void;
+	clearBasket(): void;
+	getBasketItems(): IProductItem[];
+	getTotal(): number;
+	isItemInBasket(itemId: string): boolean;
+}
+```
 
-    addToBasket(item: IProductItem): void;
-    removeFromBasket(item: IProductItem): void;
-    clearBasket(): void;
-    getTotal(): number;
-    isItemInBasket(itemId: string): boolean;
-    getOrder(): IOrder;
-    setOrderField(field: keyof Omit<IOrder, 'items' | 'total'>, value: string): void;
-    validateOrder(): boolean;
-    validateContacts(): boolean;
-    createOrderPayload(): IOrder;
+Модель, отвечающая за заказ
+```
+interface IOrderModel {
+    order: TOrderForm;
+    getOrderData(): TOrderForm;
+	setOrderField(field: keyof TOrderForm, value: string): void;
+	validateOrder(): string;
+	validateContacts(): string;
+    clearOrder(): void;
 }
 ```
 
@@ -149,14 +154,13 @@ interface IBasketModel {
 - `findItem(id: string): IProductItem | undefined`: находит и возвращает товар из каталога по его ID.
 
 #### Класс BasketModel
-Отвечает за состояние корзины и процесс оформления заказа.
+Отвечает за состояние корзины.
 
 Конструктор принимает экземпляр EventEmitter.
 
 Поля:
 
-- `items: IProductItem[]`: массив товаров, добавленных в корзину.
-- `order: IOrder`: объект с данными для оформления заказа (адрес, оплата, контакты).
+- `_items: IProductItem[]`: массив товаров, добавленных в корзину.
 
 Методы:
 
@@ -167,10 +171,23 @@ interface IBasketModel {
 - `getTotal(): number`: возвращает общую стоимость товаров в корзине.
 - `getOrder(): IOrder`: возвращает массив товаров, добавленных в корзину.
 - `isItemInBasket(itemId: string): boolean`: проверяет, есть ли товар в корзине.
-- `setOrderField(field: keyof IOrderForm, value: string): void`: сохраняет данные из полей форм в объект order.
-- `validateOrder(): string / validateContacts(): string`: проверяют валидность данных в форме заказа.
-- `createOrderPayload(): IOrder`: собирает финальный объект заказа.
 
+#### Класс OrderModel
+Отвечает только за данные, состояние и валидацию форм оформления заказа.
+
+Конструктор принимает экземпляр EventEmitter.
+
+Поля:
+
+- `order: TOrderForm`: Объект, хранящий данные из полей форм (payment, address, email, phone).
+
+Методы:
+
+- `getOrderData(): TOrderForm`: Возвращает данные из полей форм.
+- `setOrderField(field, value): void`: Устанавливает значение для конкретного поля формы.
+- `validateOrder(): string`: Проверяет поля первого шага (адрес, оплата) и возвращает строку с ошибкой или пустую строку.
+- `validateContacts(): string`: Проверяет поля второго шага (email, телефон) и возвращает строку с ошибкой или пустую строку.
+- `clearOrder(): void`: Сбрасывает все поля формы к начальному состоянию.
 
 ### Классы представления
 
@@ -243,14 +260,15 @@ interface IBasketModel {
 
 Методы:
 
-- `set title(value: string): void`: Устанавливает название товара.
-- `set image(value: string): void`: Устанавливает изображение товара, формируя полный URL с помощью CDN_URL.
-- `set description(value: string): void`: Устанавливает описание товара.
-- `set category(value: string): void`: Устанавливает категорию товара.
-- `set index(value: number): void`: Устанавливает порядковый номер товара в корзине.
-- `set price(value: number | null): void`: Устанавливает цену. Если цена null, отображает "Бесценно" и обновляет кнопку покупки.
-- `set inBasket(value: boolean): void`: Устанавливает статус нахождения товара в корзине и обновляет состояние кнопки.
-- `updateButtonState(): void`: Обновляет текст кнопки в детальном превью ("В корзину" / "Удалить из корзины" или "Недоступно").
+- `render(data: CardRenderData)`: HTMLElement: Основной метод для отрисовки. Принимает объект с данными, вызывает все необходимые сеттеры для обновления отображения и возвращает корневой DOM-элемент.
+- `set title(value: string)`: Устанавливает название.
+- `set image(value: string)`: Устанавливает изображение, формируя полный URL.
+- `set description(value: string)`: Устанавливает описание.
+- `set category(value: string)`: Устанавливает текст и CSS-класс для цвета категории.
+- `set index(value: number)`: Устанавливает порядковый номер в корзине.
+- `set price(value: number | null)`: Устанавливает цену и вызывает обновление кнопки.
+- `set inBasket(value: boolean)`: Устанавливает статус нахождения в корзине и вызывает обновление кнопки.
+- `updateButtonState(): void`: управляет текстом и состоянием (disabled) кнопки на основе цены и наличия в корзине.
 
 
 #### Класс Basket
